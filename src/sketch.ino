@@ -4,6 +4,9 @@
 #define _Y 0
 #define _Z 0
 
+#define red 13
+#define yellow 12
+
 byte read(int reg)
 {
 	Wire.beginTransmission(0x68);
@@ -116,6 +119,8 @@ void setup()
 	pinMode(1, OUTPUT);
 	pinMode(9, OUTPUT);
 	pinMode(10, OUTPUT);
+	pinMode(red, OUTPUT);
+	pinMode(yellow, OUTPUT);
 
 	pinMode(trig_pin, OUTPUT);
 	pinMode(echo_pin, INPUT);
@@ -224,6 +229,8 @@ void turnRight()
 
 void doCalibrate()
 {
+	signal(yellow, 3);
+	on(yellow);
 	for (int i = 0; i < 502; ++i) {
 		doMeasurement(500);
 		delay(1);
@@ -232,6 +239,7 @@ void doCalibrate()
 	for (int i = 0; i < 3; ++i) {
 		b1[i] = now[i];
 	}
+	signal(yellow, 2);
 	turnLeft();
 	delay(300);
 	stop();
@@ -245,13 +253,33 @@ void doCalibrate()
 		b2[i] = now[i];
 	}
 
+	signal(yellow, 1);
 	vectorMult(b1, b2, bb);
+	off(yellow);
+}
+
+void signal(int pin, int times) {
+	for (int i = 0; i < times; ++i) {
+		digitalWrite(pin, HIGH);
+		delay(300);
+		digitalWrite(pin, LOW);
+		delay(300);
+	}
+}
+
+void on(int pin) {
+	digitalWrite(pin, HIGH);
+}
+
+void off(int pin) {
+	digitalWrite(pin, LOW);
 }
 
 void loop()
 {
 	if (!calibrated) {
 		doCalibrate();
+		calibrated = true;
 	}
 	doMeasurement(500);
 
@@ -264,6 +292,7 @@ void loop()
 
 	unsigned long distance = get_distance();
 	if (distance < 8) {
+		on(red);
 		stop();
 		turnLeft();
 		delay(500);
@@ -278,6 +307,7 @@ void loop()
 			delay(1000);
 			stop();
 		}
+		off(red);
 	} else {
 		go_forward();
 	}
