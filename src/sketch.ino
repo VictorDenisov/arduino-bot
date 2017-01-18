@@ -1,3 +1,4 @@
+#include <avr/interrupt.h>
 #include <Wire.h>
 
 #define _X 0
@@ -6,6 +7,20 @@
 
 #define red 13
 #define yellow 12
+
+volatile bool distanceAvailable;
+volatile bool distanceMeasured;
+volatile unsigned int startDistanceSignal;
+volatile unsigned int endDistanceSignal;
+
+void signal(int pin, int times);
+
+void pciSetup(byte pin)
+{
+    *digitalPinToPCMSK(pin) |= bit (digitalPinToPCMSKbit(pin));  // enable pin
+    PCIFR  |= bit (digitalPinToPCICRbit(pin)); // clear any outstanding interrupt
+    PCICR  |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
+}
 
 byte read(int reg)
 {
@@ -104,7 +119,10 @@ void doMeasurement(int measureCount)
 		tot[_Y] = y;
 		tot[_Z] = z;
 		magMeasurementNumber = 1;
+
+		signal(yellow, 2);
 		sAvailable = true;
+		signal(red, 2);
 	}
 }
 
@@ -125,6 +143,8 @@ void setup()
 	pinMode(trig_pin, OUTPUT);
 	pinMode(echo_pin, INPUT);
 
+	pciSetup(echo_pin);
+
 	Wire.begin();
 	write(0x6B, 0);
 	write(0x6A, 0);
@@ -137,6 +157,8 @@ void setup()
 	curAvailable = false;
 	sAvailable = false;
 	calibrated = false;
+	distanceMeasured = false;
+	distanceAvailable = false;
 }
 
 const int speed = 80;
@@ -156,12 +178,18 @@ void go_forward()
 		vectorMult(cur, now, dir);
 		double sm = scalarMult(dir, bb);
 		if (sm > 0) {
-			analogWrite(9, speed);
-			analogWrite(10, speed - 5);
-		} else if (sm < 0) {
+			on(yellow);
+			off(red);
 			analogWrite(9, speed - 5);
 			analogWrite(10, speed);
+		} else if (sm < 0) {
+			off(yellow);
+			on(red);
+			analogWrite(9, speed);
+			analogWrite(10, speed - 5);
 		} else {
+			off(yellow);
+			off(red);
 			analogWrite(9, speed);
 			analogWrite(10, speed);
 		}
@@ -199,11 +227,23 @@ unsigned long get_distance()
 {
 	digitalWrite(trig_pin, LOW);
 	delayMicroseconds(2);
+
+	distanceMeasured = true;
+	distanceAvailable = false;
+
 	digitalWrite(trig_pin, HIGH);
 	delayMicroseconds(5);
 	digitalWrite(trig_pin, LOW);
 
-	unsigned long echo = pulseIn(echo_pin, HIGH);
+	unsigned long echo = -1;
+	for (;;) {
+		if (distanceAvailable) {
+			echo = endDistanceSignal - startDistanceSignal;
+			break;
+		}
+		delayMicroseconds(5);
+	}
+
 	return (1.0 * echo / 58.138);
 }
 
@@ -273,6 +313,18 @@ void on(int pin) {
 
 void off(int pin) {
 	digitalWrite(pin, LOW);
+}
+
+ISR(PCINT0_vect) {
+	if (distanceMeasured) {
+		if (digitalRead(echo_pin) == HIGH) {
+			startDistanceSignal = micros();
+		} else {
+			endDistanceSignal = micros();
+			distanceMeasured = false;
+			distanceAvailable = true;
+		}
+	}
 }
 
 void loop()
