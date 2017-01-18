@@ -177,23 +177,27 @@ void go_forward()
 		double dir[3];
 		vectorMult(cur, now, dir);
 		double sm = scalarMult(dir, bb);
+		on(yellow);
+		off(red);
 		if (sm > 0) {
-			on(yellow);
-			off(red);
-			analogWrite(9, speed - 5);
-			analogWrite(10, speed);
-		} else if (sm < 0) {
-			off(yellow);
-			on(red);
+		//	on(yellow);
+			//off(red);
 			analogWrite(9, speed);
-			analogWrite(10, speed - 5);
+			analogWrite(10, speed - 10);
+		} else if (sm < 0) {
+			//off(yellow);
+			//on(red);
+			analogWrite(9, speed - 10);
+			analogWrite(10, speed);
 		} else {
-			off(yellow);
-			off(red);
+			//off(yellow);
+			//off(red);
 			analogWrite(9, speed);
 			analogWrite(10, speed);
 		}
 	} else {
+		//on(yellow);
+		//on(red);
 		analogWrite(9, speed);
 		analogWrite(10, speed);
 	}
@@ -335,7 +339,7 @@ void loop()
 	}
 	doMeasurement(500);
 
-	if (sAvailable) {
+	if (sAvailable && !curAvailable) {
 		for (int i = 0; i < 3; ++i) {
 			cur[i] = now[i];
 		}
